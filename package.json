@@ -1,0 +1,29 @@
+{
+  "name": "profitengine",
+  "version": "4.0.0",
+  "description": "Autonomous content monetization engine — Already Here LLC",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest --runInBand",
+    "lint": "eslint . --ext .js",
+    "format": "prettier --write .",
+    "health": "curl -s http://localhost:3000/api/health | node -e \"process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.stringify(JSON.parse(d),null,2)))\""
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "express": "^4.18.2",
+    "nodemailer": "^6.9.7",
+    "winston": "^3.11.0",
+    "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "eslint": "^8.55.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.1.0"
+  },
+  "engines": { "node": ">=18.0.0" },
+  "license": "UNLICENSED",
+  "private": true
+}

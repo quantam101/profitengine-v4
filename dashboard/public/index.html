@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProfitEngine v4.0 — Already Here LLC</title>
+<style>
+  :root {
+    --bg: #0d0d12; --surface: #16161e; --border: #2a2a38;
+    --accent: #7c3aed; --accent2: #06b6d4; --green: #10b981;
+    --red: #ef4444; --yellow: #f59e0b; --text: #e2e8f0; --muted: #64748b;
+    --font: 'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 18px; font-weight: 700; color: var(--accent); letter-spacing: -0.5px; }
+  header span { font-size: 12px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 20px 24px 0; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .card-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .card-value { font-size: 28px; font-weight: 700; color: var(--text); }
+  .card-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 24px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .panel h3 { font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--accent2); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; color: var(--muted); padding: 4px 8px; border-bottom: 1px solid var(--border); }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 9999px; font-size: 10px; font-weight: 600; }
+  .badge-green { background: rgba(16,185,129,.15); color: var(--green); }
+  .badge-red   { background: rgba(239,68,68,.15); color: var(--red); }
+  .badge-yellow{ background: rgba(245,158,11,.15); color: var(--yellow); }
+  .ai-panel { margin: 0 24px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .ai-panel h3 { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: var(--accent); }
+  #ai-messages { min-height: 60px; max-height: 200px; overflow-y: auto; margin-bottom: 10px; font-size: 13px; line-height: 1.6; }
+  .ai-msg { padding: 6px 10px; border-radius: 6px; margin-bottom: 6px; }
+  .ai-msg.user { background: rgba(124,58,237,.15); color: var(--text); }
+  .ai-msg.bot  { background: rgba(6,182,212,.08); color: var(--text); }
+  .ai-input { display: flex; gap: 8px; }
+  .ai-input input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; color: var(--text); font-size: 13px; outline: none; }
+  .ai-input input:focus { border-color: var(--accent); }
+  .btn { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .btn:hover { opacity: .85; }
+  .btn-sm { font-size: 11px; padding: 5px 10px; }
+  .btn-cyan { background: var(--accent2); }
+  .actions { padding: 0 24px 12px; display: flex; gap: 8px; }
+  .health-bar { height: 6px; border-radius: 3px; background: var(--border); margin-top: 8px; overflow: hidden; }
+  .health-fill { height: 100%; border-radius: 3px; transition: width .5s; }
+  footer { text-align: center; padding: 16px; color: var(--muted); font-size: 11px; }
+  @media(max-width:700px){.row{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<header>
+  <h1>ProfitEngine v4.0</h1>
+  <span id="last-update">Loading...</span>
+</header>
+
+<div class="grid" id="stat-grid">
+  <div class="card"><div class="card-title">Posts Generated</div><div class="card-value" id="stat-gen">—</div></div>
+  <div class="card"><div class="card-title">Posts Published</div><div class="card-value" id="stat-pub">—</div></div>
+  <div class="card"><div class="card-title">Trends Scanned</div><div class="card-value" id="stat-trends">—</div></div>
+  <div class="card"><div class="card-title">Health Score</div><div class="card-value" id="stat-health">—</div><div class="health-bar"><div class="health-fill" id="health-fill" style="width:0%;background:var(--green)"></div></div></div>
+  <div class="card"><div class="card-title">Tokens Today</div><div class="card-value" id="stat-tokens">—</div><div class="card-sub" id="stat-tokens-sub"></div></div>
+  <div class="card"><div class="card-title">Dead Letter Queue</div><div class="card-value" id="stat-dlq">—</div></div>
+</div>
+
+<div class="actions" style="margin-top:12px;">
+  <button class="btn btn-sm" onclick="triggerCycle()">Run Cycle Now</button>
+  <button class="btn btn-sm btn-cyan" onclick="triggerImprove()">Run Self-Improve</button>
+</div>
+
+<div class="row">
+  <div class="panel">
+    <h3>Platform Stats</h3>
+    <table><thead><tr><th>Platform</th><th>Status</th><th>Success Rate</th><th>Wins</th></tr></thead>
+    <tbody id="platform-table"><tr><td colspan="4" style="color:var(--muted)">Loading...</td></tr></tbody></table>
+  </div>
+  <div class="panel">
+    <h3>Latest Trends</h3>
+    <table><thead><tr><th>Title</th><th>Niche</th><th>Score</th></tr></thead>
+    <tbody id="trends-table"><tr><td colspan="3" style="color:var(--muted)">Loading...</td></tr></tbody></table>
+  </div>
+</div>
+
+<div class="row">
+  <div class="panel">
+    <h3>Recent Publishes</h3>
+    <table><thead><tr><th>Title</th><th>Platforms</th><th>Time</th></tr></thead>
+    <tbody id="publish-table"><tr><td colspan="3" style="color:var(--muted)">Loading...</td></tr></tbody></table>
+  </div>
+  <div class="panel">
+    <h3>LLM Circuits</h3>
+    <table><thead><tr><th>Provider</th><th>Status</th><th>Failures</th></tr></thead>
+    <tbody id="circuit-table"><tr><td colspan="3" style="color:var(--muted)">Loading...</td></tr></tbody></table>
+  </div>
+</div>
+
+<div class="ai-panel">
+  <h3>AI Operations Advisor (Lifelong Catch & Correct)</h3>
+  <div id="ai-messages"><div class="ai-msg bot">Ask me anything about system performance, revenue strategy, or optimization opportunities.</div></div>
+  <div class="ai-input">
+    <input type="text" id="ai-q" placeholder="e.g. Why is my publish rate low? What niches should I add?" onkeydown="if(event.key==='Enter')askAI()">
+    <button class="btn" onclick="askAI()">Ask</button>
+  </div>
+</div>
+
+<footer>ProfitEngine v4.0 — Already Here LLC &bull; alreadyherellc.com &bull; Auto-refreshes every 30s</footer>
+
+<script>
+async function load() {
+  try {
+    const [status, posts, trends] = await Promise.all([
+      fetch('/api/status').then(r=>r.json()),
+      fetch('/api/posts').then(r=>r.json()),
+      fetch('/api/trends').then(r=>r.json()),
+    ]);
+
+    document.getElementById('stat-gen').textContent    = status.totalGenerated;
+    document.getElementById('stat-pub').textContent    = status.totalPublished;
+    document.getElementById('stat-trends').textContent = status.totalTrends;
+    document.getElementById('stat-dlq').textContent    = status.deadLetterQueue;
+
+    const health = status.healthReport?.healthScore || 0;
+    document.getElementById('stat-health').textContent = health + '/100';
+    const fill = document.getElementById('health-fill');
+    fill.style.width = health + '%';
+    fill.style.background = health >= 70 ? 'var(--green)' : health >= 40 ? 'var(--yellow)' : 'var(--red)';
+
+    const tok = status.tokenUsage || {};
+    document.getElementById('stat-tokens').textContent = (tok.total || 0).toLocaleString();
+    const providers = Object.entries(tok.byProvider||{}).map(([k,v])=>`${k}:${v}`).join(' | ');
+    document.getElementById('stat-tokens-sub').textContent = providers;
+
+    // Platform table
+    const pt = document.getElementById('platform-table');
+    pt.innerHTML = (status.platformStats||[]).map(p=>`
+      <tr>
+        <td>${p.name}</td>
+        <td><span class="badge ${p.enabled?'badge-green':'badge-red'}">${p.enabled?'ON':'OFF'}</span></td>
+        <td>${p.successRate}</td>
+        <td>${p.success||0}</td>
+      </tr>`).join('') || '<tr><td colspan="4">No data</td></tr>';
+
+    // Trends table
+    const tt = document.getElementById('trends-table');
+    tt.innerHTML = (trends.latest||[]).slice(0,8).map(t=>`
+      <tr>
+        <td title="${t.title}">${t.title?.slice(0,40) || '—'}</td>
+        <td>${t.niche || '—'}</td>
+        <td>${t.monetizationScore || '—'}</td>
+      </tr>`).join('') || '<tr><td colspan="3">No trends yet</td></tr>';
+
+    // Publish log
+    const pl = document.getElementById('publish-table');
+    pl.innerHTML = (posts.log||[]).slice(-8).reverse().map(p=>`
+      <tr>
+        <td title="${p.title}">${p.title?.slice(0,35) || '—'}</td>
+        <td>${(p.platforms||[]).join(', ')}</td>
+        <td>${p.ts ? new Date(p.ts).toLocaleTimeString() : '—'}</td>
+      </tr>`).join('') || '<tr><td colspan="3">No publishes yet</td></tr>';
+
+    // Circuits
+    const ct = document.getElementById('circuit-table');
+    ct.innerHTML = (status.circuits||[]).map(c=>`
+      <tr>
+        <td>${c.provider}</td>
+        <td><span class="badge ${c.open?'badge-red':'badge-green'}">${c.open?'OPEN':'OK'}</span></td>
+        <td>${c.failures}</td>
+      </tr>`).join('') || '<tr><td colspan="3">No circuit data</td></tr>';
+
+    document.getElementById('last-update').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  } catch(e) {
+    document.getElementById('last-update').textContent = 'Refresh error — ' + e.message;
+  }
+}
+
+async function askAI() {
+  const input = document.getElementById('ai-q');
+  const q = input.value.trim();
+  if (!q) return;
+  input.value = '';
+  const msgs = document.getElementById('ai-messages');
+  msgs.innerHTML += `<div class="ai-msg user">${q}</div>`;
+  msgs.innerHTML += `<div class="ai-msg bot" id="ai-loading">Thinking...</div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+  try {
+    const res = await fetch('/api/ask', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ question: q })
+    });
+    const data = await res.json();
+    document.getElementById('ai-loading').textContent = data.answer || data.error || 'No response';
+  } catch {
+    document.getElementById('ai-loading').textContent = 'Advisor offline.';
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+async function triggerCycle() {
+  await fetch('/api/run-cycle', { method: 'POST' });
+  alert('Cycle triggered — check logs.');
+}
+async function triggerImprove() {
+  await fetch('/api/run-improve', { method: 'POST' });
+  alert('Self-improvement triggered.');
+}
+
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>
