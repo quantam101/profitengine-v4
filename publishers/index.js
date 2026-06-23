@@ -7,6 +7,7 @@
 const logger   = require('../utils/logger');
 const state    = require('../utils/state');
 const config   = require('../config');
+const contentIdentity = require('../utils/contentIdentity');
 
 const devto    = require('./devto');
 const hashnode = require('./hashnode');
@@ -43,8 +44,27 @@ function recordResult(platform, success) {
   state.set(key, stats);
 }
 
+function platformRecords() {
+  return contentIdentity.flattenRecords(
+    state.get('platformPublishedContentRecords', []),
+    state.get('publishLog', [])
+  );
+}
+
 async function publish(post) {
   if (!post?.title || !post?.body) return { published: 0, platforms: [] };
+
+  const duplicate = contentIdentity.findDuplicate(post, platformRecords());
+  if (duplicate) {
+    const skipped = contentIdentity.buildRecord(post, {
+      reason: 'duplicate_platform_publish',
+      duplicateOf: duplicate.title || duplicate.slug || 'unknown',
+      stage: 'platform',
+    });
+    state.push('skippedPlatformPosts', skipped);
+    logger.warn(`[PUBLISHER] Duplicate platform post skipped: "${post.title.slice(0,50)}"`);
+    return { published: 0, skipped: true, reason: 'duplicate_platform_publish', platforms: [] };
+  }
 
   const today = state.get(getDailyKey(), 0);
   if (today >= config.maxPostsPerDay) {
@@ -82,8 +102,15 @@ async function publish(post) {
   if (succeeded.length > 0) {
     state.increment(getDailyKey());
     state.increment('totalPostsPublished');
+    const record = contentIdentity.buildRecord(post, {
+      platforms: succeeded.map(s => s.platform),
+      urls: succeeded.map(s => s.url),
+      stage: 'platform',
+    });
+    state.push('platformPublishedContentRecords', record, 1000);
     state.push('publishLog', {
-      title: post.title, platforms: succeeded.map(s => s.platform),
+      title: post.title, sourceTitle: post.trend?.title || post.sourceTitle || post.title,
+      platforms: succeeded.map(s => s.platform),
       urls: succeeded.map(s => s.url), ts: new Date().toISOString()
     });
     logger.info(`[PUBLISHER] "${post.title.slice(0,50)}" -> ${succeeded.map(s=>s.platform).join(', ')}`);
