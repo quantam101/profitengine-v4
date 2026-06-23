@@ -34,7 +34,7 @@ async function runPipeline() {
   const cycleStart = Date.now();
   logger.info(`[SCHEDULER] === Cycle #${_cycleCount} START ===`);
 
-  const summary = { cycle: _cycleCount, trends: 0, generated: 0, published: 0, errors: [] };
+  const summary = { cycle: _cycleCount, trends: 0, generated: 0, published: 0, skipped: 0, errors: [] };
 
   try {
     // 1. Scan trends
@@ -75,11 +75,24 @@ async function runPipeline() {
       }
     }
 
-    // 4. Publish to website + all platforms
+    // 4. Publish to website + all platforms.
+    // Platform publishing is gated behind website publishing. If a website post
+    // is skipped as duplicate, no social/Telegram-facing route should repost it.
     for (const post of enriched) {
       try {
-        await websiteAgent.publishPost(post);
+        const websiteResult = await websiteAgent.publishPost(post);
+        if (websiteResult?.skipped) {
+          summary.skipped += 1;
+          logger.warn(`[SCHEDULER] Publish skipped: ${websiteResult.reason || 'duplicate'}`);
+          continue;
+        }
+        if (!websiteResult) {
+          summary.errors.push({ stage: 'websitePublish', error: 'website publish returned null' });
+          continue;
+        }
+
         const result = await publisher.publish(post);
+        if (result?.skipped) summary.skipped += 1;
         summary.published += result.published;
         ufBridge.events.postPublished({ title: post.title, ...result });
       } catch (err) {
@@ -104,7 +117,7 @@ async function runPipeline() {
     _isRunning = false;
     const duration = ((Date.now() - cycleStart) / 1000).toFixed(1);
     summary.durationSec = parseFloat(duration);
-    logger.info(`[SCHEDULER] === Cycle #${_cycleCount} END — ${summary.generated} generated, ${summary.published} published (${duration}s) ===`);
+    logger.info(`[SCHEDULER] === Cycle #${_cycleCount} END — ${summary.generated} generated, ${summary.published} published, ${summary.skipped} skipped (${duration}s) ===`);
     ufBridge.events.cycleComplete(summary);
     state.set('lastCycleSummary', { ...summary, ts: new Date().toISOString() });
 
