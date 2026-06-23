@@ -6,10 +6,10 @@
  * Tier 1 for social/merch, Tier 2 for full blog posts.
  */
 const llm     = require('../utils/llm');
-const distill = require('../utils/distillation');
 const logger  = require('../utils/logger');
 const state   = require('../utils/state');
 const config  = require('../config');
+const contentIdentity = require('../utils/contentIdentity');
 
 const CONTENT_TYPES = ['how-to guide', 'listicle', 'product review', 'comparison post', 'case study'];
 
@@ -48,10 +48,39 @@ date: ${new Date().toISOString().slice(0,10)}
 ---`;
 }
 
+function duplicateRecords() {
+  return contentIdentity.flattenRecords(
+    state.get('generatedContentRecords', []),
+    state.get('publishedContentRecords', []),
+    state.get('publishedPosts', []),
+    state.get('publishLog', []),
+    state.get('skippedContentPosts', [])
+  );
+}
+
+function shouldGenerateTrend(trend) {
+  if (!trend?.title) return { ok: false, reason: 'missing_title' };
+  const duplicate = contentIdentity.findDuplicate(trend, duplicateRecords());
+  if (duplicate) {
+    return { ok: false, reason: 'duplicate_topic', duplicate };
+  }
+  return { ok: true };
+}
+
 async function generatePost(trend) {
+  const check = shouldGenerateTrend(trend);
+  if (!check.ok) {
+    const skipped = contentIdentity.buildRecord(trend, {
+      reason: check.reason,
+      duplicateOf: check.duplicate?.title || check.duplicate?.slug || 'unknown',
+      stage: 'generation',
+    });
+    state.push('skippedContentPosts', skipped);
+    logger.warn(`[ContentGen] Skipping duplicate trend: "${trend?.title || 'untitled'}"`);
+    return null;
+  }
+
   const contentType = pickContentType(trend);
-  const cacheKey = `post_${trend.title.slice(0,40).replace(/\s+/g,'_')}`;
-  const cached = distill.dedup([]);  // just using distill for dedup util
   const prompt = buildPrompt(trend, contentType);
 
   logger.info(`[ContentGen] Generating ${contentType}: "${trend.title.slice(0,50)}"`);
@@ -60,6 +89,7 @@ async function generatePost(trend) {
   const post = {
     id: `post_${Date.now()}`,
     title: trend.title,
+    canonicalTopic: trend.title,
     contentType,
     niche: trend.niche,
     keywords: trend.keywords || [],
@@ -71,10 +101,11 @@ async function generatePost(trend) {
     clicks: 0,
   };
 
-  // Track for A/B testing
+  // Track for A/B testing and duplicate suppression.
   const queue = state.get('unpublishedPosts', []);
   queue.push(post);
   state.set('unpublishedPosts', queue.slice(-50));
+  state.push('generatedContentRecords', contentIdentity.buildRecord(post, { stage: 'generation' }), 1000);
   state.increment('totalPostsGenerated');
   return post;
 }
@@ -84,7 +115,7 @@ async function generateBatch(trends) {
   for (const trend of trends.slice(0, config.contentPerRun)) {
     try {
       const post = await generatePost(trend);
-      results.push(post);
+      if (post) results.push(post);
     } catch (err) {
       logger.error(`[ContentGen] Failed for "${trend.title}"`, { error: err.message });
     }
@@ -94,18 +125,28 @@ async function generateBatch(trends) {
 }
 
 async function generateAffiliateReview(product) {
+  const title = `${product} Review: Is It Worth It?`;
+  const check = shouldGenerateTrend({ title });
+  if (!check.ok) {
+    logger.warn(`[ContentGen] Skipping duplicate affiliate review: "${title}"`);
+    return null;
+  }
+
   const prompt = `Write a 600-word honest affiliate review of "${product}" for alreadyherellc.com.
 Niche: ${config.targetNiches[0]}. Include pros, cons, who it's for, and a CTA.
 Include [AMAZON_LINK] where the buy link should go. Format: Markdown.`;
   const content = await llm.generate(prompt, null, 1000);
-  return {
+  const post = {
     id: `review_${Date.now()}`,
-    title: `${product} Review: Is It Worth It?`,
+    title,
+    canonicalTopic: title,
     contentType: 'affiliate review',
     body: content,
     generatedAt: new Date().toISOString(),
     published: false,
   };
+  state.push('generatedContentRecords', contentIdentity.buildRecord(post, { stage: 'generation' }), 1000);
+  return post;
 }
 
 async function generateMerchPrompt(niche) {
@@ -123,4 +164,4 @@ function recordEngagement(postId, contentType, views, clicks) {
   state.set('contentTypePerformance', perf);
 }
 
-module.exports = { generatePost, generateBatch, generateAffiliateReview, generateMerchPrompt, recordEngagement };
+module.exports = { generatePost, generateBatch, generateAffiliateReview, generateMerchPrompt, recordEngagement, shouldGenerateTrend };
