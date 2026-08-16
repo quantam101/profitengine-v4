@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "control_plane": "quantam101/daily-command-os",
+  "dashboard_path": "/agents",
+  "api_path": "/api/agents",
+  "repo": "quantam101/profitengine-v4",
+  "agents": ["profit-v4-maintainer", "profit-v4-auditor"],
+  "external_spend_usd": 0
+}
